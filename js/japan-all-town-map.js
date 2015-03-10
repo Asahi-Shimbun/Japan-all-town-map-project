@@ -1,3 +1,15 @@
+/**
+ * japan-all-town-map.js
+ *
+ * @version  0.0.1
+ * @url https://github.com/Asahi-Shimbun-CreativeTeam/Japan-all-town-map-project
+ *
+ * Copyright 2014 The Asahi Shimbun.
+ * Licensed under the MIT License:
+ * http://www.opensource.org/licenses/mit-license.php
+ */
+
+
 google.maps.event.addDomListener(window, 'load', function(){
 
 	var csv_2013_city = [];		//csvファイルの2013年データ(%)（市町村）
