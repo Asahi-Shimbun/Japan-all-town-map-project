@@ -1,55 +1,7 @@
-///////////////////////////////////////////////////////////////////////////////////////
-//  2014年9月  宇根メモ
-//
-// 【概略】
-//  Google Mapをベースで表示させている。
-//  別途、D3.jsを使ってTopoJSONファイルとcsvを読み込み、Google Mapに重ねて描画。
-//
-// 【CSVファイルの仕様】
-// -kenbetsu.csv（都道府県別データ：47行）
-//   id:市町村名（アルファベット）
-//   rate2040：2040年の限界学校割合(%)
-//   rate2013：2013年の限界学校割合(%)
-//   limitNum2040:2040年の限界数
-//   limitNum2013:2013年の限界数
-//
-// -shibetsu.csv（市町村別データ：1683行）
-//   id:市町村コード
-//   town:市町村名（日本語）※UTF8
-//   rate2040：2040年の限界学校割合(%)
-//   rate2013：2013年の限界学校割合(%)
-//
-// 【TopoJSONファイルの仕様】
-//  日本列島全体（borders47.json）と別に47個の都道府県ファイルがある。ズームすると後者の地図に切り替わる。
-//  
-// 【塗り分け】
-//  紙面に準ずる
-//
-// 【フロー】
-//   csvファイルは2つ。TopoJSONファイルは48個。D3.jsのqueue()で全てのJSONの読み込みを待つ。	
-//
-// 【当初からの変更点】
-//  tsvとtopojsonの拡張子は使えないとのことでtsvはcsvに作り替えた（jsコードはほとんど修正不要！）。
-//　　topojsonは拡張子をjsonに変更しただけ。
-//  ツールチップ表示の位置は固定した。
-//  クラスの付け替えのためjQueryを導入。
-//
-///////////////////////////////////////////////////////////////////////////////////////
+google.maps.event.addDomListener(window, 'load', function(){
 
-
-google.maps.event.addDomListener(window, 'load', function() {
-
-	var tsv_2013_city = [];		//csvファイルの2013年データ(%)（市町村） eg) tsv_2013_city['44211'] = 34.62%
-	var tsv_2040_city = []; 	//csvファイルの2040年データ(%)（市町村）
-	var tsv_2013_pref = [];  	//csvファイルの2013年データ(%)（都道府県）
-	var tsv_2040_pref = [];  	//csvファイルの2040年データ(%)（都道府県）
-	var tsv_2013_limit_pref = [];	//csvファイルの限界数（都道府県）
-	var tsv_2040_limit_pref = [];	//csvファイルの限界数（都道府県）
-	var tsv_town_name = [];		//ｃｓｖファイルの市町村名（UTF8日本語）
- 	var yearState;				//HTMLで2013年か2040年を指定
- 	var maxData;				//ツールチップ内に限界数の棒グラフを表示するために使用（csvの最大値で正規化）
- 	//var cnt = 0;				//デバッグ用カウンタ
-
+	var csv_2013_city = [];		//csvファイルの2013年データ(%)（市町村）
+	var csv_2013_pref = [];  	//csvファイルの2013年データ(%)（都道府県）
 	var myVal;
 
  	//////////////////////////////////////// 初期化処理 ここから ////////////////////////////////////////
@@ -57,9 +9,6 @@ google.maps.event.addDomListener(window, 'load', function() {
 	var prevState = 'pref';	//ズームレベルが変化する前の表示モード。 city か prefが入る。
 	var initZoom = 5;		//ズームの初期値
  	var yearRadioList = document.getElementsByName("year");	//ラジオボタンから西暦を取得
-
- 	//西暦を判別し、h2タグの内容を切り替える
-	setYear();
 
 	//ツールチップ追加
 	var tooltip = d3.select("#svgmap")
@@ -106,8 +55,6 @@ google.maps.event.addDomListener(window, 'load', function() {
 	
 	//描画スタイルを指定
 	 function styleFeature(){
-	 	// cnt++;
-	 	// console.log("cnt=\t", cnt);
 
 		return function(feature){
 			
@@ -121,55 +68,11 @@ google.maps.event.addDomListener(window, 'load', function() {
 
 			//塗り色を設定
 			if(prefMode){ //都道府県表示モードの場合
-				if(yearState == "YEAR2013"){
-					tmpColor = getColor(tsv_2013_pref[feature.getProperty('pref')]);
-				}
-				else if(yearState == "YEAR2040"){
-					tmpColor = getColor(tsv_2040_pref[feature.getProperty('pref')]);
-				}
+				tmpColor = getColor(csv_2013_pref[feature.getProperty('pref')]);
 			}
 			else{ //市町村表示モードの場合
-				if(yearState == "YEAR2013"){
-					tmpColor = getColor(tsv_2013_city[feature.getProperty('city_code')]);
-				}
-				else if(yearState == "YEAR2040"){
-					tmpColor = getColor(tsv_2040_city[feature.getProperty('city_code')] );
-				}
+				tmpColor = getColor(csv_2013_city[feature.getProperty('city_code')]);
 			};
-
-			
-			// //////////////////////////////////// DEBUG CODE ////////////////////////////////////
-			// if(prefMode){	//都道府県モードの時
-			// 	if(tsv_2013_pref[feature.getProperty('pref')] == null){ //rate2013がnullだったら青く
-			// 		tmpColor = "blue";
-			// 		tmpOpacity = 1.0;
-			// 	}
-			// 	if(tsv_2040_pref[feature.getProperty('pref')] == null){ //rate2040がnullだったら青く
-			// 		tmpColor = "blue";
-			// 		tmpOpacity = 1.0;
-			// 	}
-			// 	if(feature.getProperty('pref') == null){ //city_codeがnullだったら青く
-			// 		//console.log(feature.getProperty('city_code'));
-			// 		tmpColor = "blue";
-			// 		tmpOpacity = 1.0;
-			// 	}
-			// }
-			// else{	//市町村モードの時
-			// 	if(tsv_2013_city[feature.getProperty('city_code')] == null){ //rate2013がnullだったら青く
-			// 		tmpColor = "blue";
-			// 		tmpOpacity = 1.0;
-			// 	}
-			// 	if(tsv_2040_city[feature.getProperty('city_code')] == null){ //rate2040がnullだったら青く
-			// 		tmpColor = "blue";
-			// 		tmpOpacity = 1.0;
-			// 	}
-			// 	if(feature.getProperty('city_code') == null){ //city_codeがnullだったら青く
-			// 		//console.log(feature.getProperty('city_code'));
-			// 		tmpColor = "blue";
-			// 		tmpOpacity = 1.0;
-			// 	}
-			// }
-			// //////////////////////////////////// DEBUG CODE ////////////////////////////////////
 
 			//マウスオーバーで色を変更させる
 			if (feature.getProperty('state') === 'hover') {
@@ -204,7 +107,6 @@ google.maps.event.addDomListener(window, 'load', function() {
 				}
 			};
 			///////////表示モード（市町村表示 or 都道府県）の切り替え（ここまで）///////////
-
 			return {
 				strokeWeight: tmpStrokeWeight,
 				strokeColor: tmpStrokeColor,
@@ -213,21 +115,18 @@ google.maps.event.addDomListener(window, 'load', function() {
 				fillColor: tmpColor,
 				fillOpacity: tmpOpacity,
 				visible: true
-			};		
+			};
 		}
 	
 	};//styleFeature
 	
 	//CSV読み込み1（市町村データ:1800個）
-	d3.csv("csv/shibetsu3.csv", function(error, dataTsv){
-		for(var i=0; i<dataTsv.length; i++){
-			tsv_2013_city[dataTsv[i].id] = parseFloat(dataTsv[i].rate2013);	//2013年(%)
-			tsv_2040_city[dataTsv[i].id] = parseFloat(dataTsv[i].rate2040);	//2040年(%)
-			//console.log(dataTsv[i].id + "\t" + tsv_2013_city[dataTsv[i].id] + "\t" + tsv_2040_city[dataTsv[i].id] );//dataTsv[i].idが市町村コード
-			tsv_town_name[dataTsv[i].id] = String(dataTsv[i].town);
-			//console.log(dataTsv[i].id + "\t" + tsv_town_name[dataTsv[i].id]);
+	d3.csv("csv/shibetsu.csv", function(error, dataCsv){
+		for(var i=0; i<dataCsv.length; i++){
+			csv_2013_city[dataCsv[i].id] = parseFloat(dataCsv[i].rate2013);	//2013年(%)
+			//console.log(dataCsv[i].id + "\t" + csv_2013_city[dataCsv[i].id] + "\t");//dataCsv[i].idが市町村コード
 		};
-		//console.log("CSVファイルの市町村数:" + Object.keys(tsv_2013_city).length);
+		//console.log("CSVファイルの市町村数:" + Object.keys(csv_2013_city).length);
 
 
 		//市町村セレクタ（一覧から選択）:都道府県選択
@@ -289,7 +188,7 @@ google.maps.event.addDomListener(window, 'load', function() {
 
 			function createList(s,g){
 				for(var i = s-1; i < g; i++){
-					$('#search_town').append($('<option>', { text: dataTsv[i].town ,value:'' }));
+					$('#search_town').append($('<option>', { text: dataCsv[i].town ,value:'' }));
 				};
 			};
 
@@ -380,77 +279,62 @@ google.maps.event.addDomListener(window, 'load', function() {
 	});//d3.csv
 	
 	//CSV読み込み2（都道府県データ:47個）
-	d3.csv("csv/kenbetsu3.csv", function(error, dataTsv){ 
-	 	var maxData_2013_pref = 0;
-	 	var maxData_2040_pref = 0;
-
-		for(var i=0; i<dataTsv.length; i++){
-			tsv_2013_pref[dataTsv[i].id] = parseFloat(dataTsv[i].rate2013);	//2013年(%)
-			tsv_2040_pref[dataTsv[i].id] = parseFloat(dataTsv[i].rate2040);	//2040年(%)
-			//console.log(dataTsv[i].id + "\t" + tsv_2013_pref[dataTsv[i].id] + "\t" + tsv_2040_pref[dataTsv[i].id] );//dataTsv[i].idがaomori
-			tsv_2013_limit_pref[dataTsv[i].id] = parseInt(dataTsv[i].limitNum2013);	//2013年限界数
-			tsv_2040_limit_pref[dataTsv[i].id] = parseInt(dataTsv[i].limitNum2040);	//2040年限界数
-			//console.log(dataTsv[i].id + "\t" + tsv_2013_limit_pref[dataTsv[i].id] + "\t" + tsv_2040_limit_pref[dataTsv[i].id]);
-			
-			//d3.max()がおかしいので最大値を手動検索
-			maxData_2013_pref = Math.max(maxData_2013_pref, tsv_2013_limit_pref[dataTsv[i].id]);
-			maxData_2040_pref = Math.max(maxData_2040_pref, tsv_2040_limit_pref[dataTsv[i].id]);
+	d3.csv("csv/kenbetsu.csv", function(error, dataCsv){ 
+		for(var i=0; i<dataCsv.length; i++){
+			csv_2013_pref[dataCsv[i].id] = parseFloat(dataCsv[i].rate2013);
 		};
 
-		//console.log("CSVファイルの都道府県数:" + Object.keys(tsv_2013_pref).length);
-		maxData = Math.max(maxData_2013_pref, maxData_2040_pref);
-		//console.log("maxData=\t" + maxData);
 	});
 
 	queue()
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/hokkaido.json") //TopoJSONの読み込み完了後main()へ
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/aomori.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/iwate.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/yamagata.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/akita.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/miyagi.json")
+		.defer(d3.json, "topojson/hokkaido.json")
+		.defer(d3.json, "topojson/aomori.json")
+		.defer(d3.json, "topojson/iwate.json")
+		.defer(d3.json, "topojson/yamagata.json")
+		.defer(d3.json, "topojson/akita.json")
+		.defer(d3.json, "topojson/miyagi.json")
 		.defer(d3.json, "topojson/fukushima.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/ibaraki.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/tochigi.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/nagano.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/yamanashi.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/gunma.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/saitama.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/chiba.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/tokyo.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/kanagawa.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/nigata.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/toyama.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/fukui.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/ishikawa.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/shizuoka.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/gifu.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/aichi.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/shiga.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/mie.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/nara.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/wakayama.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/kyoto.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/osaka.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/hyogo.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/okayama.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/hiroshima.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/tottori.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/shimane.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/yamaguchi.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/kagawa.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/tokushima.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/ehime.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/kochi.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/fukuoka.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/saga.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/nagasaki.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/oita.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/miyazaki.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/kumamoto.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/kagoshima.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/okinawa.json")
-		.defer(d3.json, "/edu/edu2014/jinkogenEdu/svgMap/topojson/borders47.json")	//都道府県データもまとめて読み込む
+		.defer(d3.json, "topojson/ibaraki.json")
+		.defer(d3.json, "topojson/tochigi.json")
+		.defer(d3.json, "topojson/nagano.json")
+		.defer(d3.json, "topojson/yamanashi.json")
+		.defer(d3.json, "topojson/gunma.json")
+		.defer(d3.json, "topojson/saitama.json")
+		.defer(d3.json, "topojson/chiba.json")
+		.defer(d3.json, "topojson/tokyo.json")
+		.defer(d3.json, "topojson/kanagawa.json")
+		.defer(d3.json, "topojson/nigata.json")
+		.defer(d3.json, "topojson/toyama.json")
+		.defer(d3.json, "topojson/fukui.json")
+		.defer(d3.json, "topojson/ishikawa.json")
+		.defer(d3.json, "topojson/shizuoka.json")
+		.defer(d3.json, "topojson/gifu.json")
+		.defer(d3.json, "topojson/aichi.json")
+		.defer(d3.json, "topojson/shiga.json")
+		.defer(d3.json, "topojson/mie.json")
+		.defer(d3.json, "topojson/nara.json")
+		.defer(d3.json, "topojson/wakayama.json")
+		.defer(d3.json, "topojson/kyoto.json")
+		.defer(d3.json, "topojson/osaka.json")
+		.defer(d3.json, "topojson/hyogo.json")
+		.defer(d3.json, "topojson/okayama.json")
+		.defer(d3.json, "topojson/hiroshima.json")
+		.defer(d3.json, "topojson/tottori.json")
+		.defer(d3.json, "topojson/shimane.json")
+		.defer(d3.json, "topojson/yamaguchi.json")
+		.defer(d3.json, "topojson/kagawa.json")
+		.defer(d3.json, "topojson/tokushima.json")
+		.defer(d3.json, "topojson/ehime.json")
+		.defer(d3.json, "topojson/kochi.json")
+		.defer(d3.json, "topojson/fukuoka.json")
+		.defer(d3.json, "topojson/saga.json")
+		.defer(d3.json, "topojson/nagasaki.json")
+		.defer(d3.json, "topojson/oita.json")
+		.defer(d3.json, "topojson/miyazaki.json")
+		.defer(d3.json, "topojson/kumamoto.json")
+		.defer(d3.json, "topojson/kagoshima.json")
+		.defer(d3.json, "topojson/okinawa.json")
+		.defer(d3.json, "topojson/borders47.json")
 		.await(main);
 
 
@@ -504,7 +388,7 @@ google.maps.event.addDomListener(window, 'load', function() {
 		kagoshima,
 		okinawa,
 		borders47
-		){ //ここまでmain引数
+		){
 
 		////////////////////// 47 loop（ここから）////////////////////
 		//ループで回すために配列に入れている。
@@ -575,20 +459,6 @@ google.maps.event.addDomListener(window, 'load', function() {
 	map.data.addListener('mouseover', mouseInToRegion);	//マウオオーバーイベント
 	map.data.addListener('mouseout', mouseOutOfRegion);	//マウスアウトイベント
 
-	// wire up the button
-	var yearSwitch = document.getElementById('year-variable');	//年号の切り替え
-	var prefSwitch = document.getElementById('pref-variable');	//表示モードの切り替え
-	var locationSwitch = document.getElementById('latlng-variable');	//中心座標の切り替え
-
-	//2013年と2040年で色を塗り分ける
-	google.maps.event.addDomListener(yearSwitch, 'change', function() {
-
-
-		//console.log(yearSwitch.options[yearSwitch.selectedIndex].value);
-	 	//西暦を判別し、h2タグの内容を切り替える
-		setYear();
-		map.data.setStyle(styleFeature());	//変化があったときコール //0918消せない
-	});
 
 	//ズームレベルの変更を監視（ズームしたら市町村モード表示に切り替える）
 	google.maps.event.addDomListener(map, 'zoom_changed', function() {
@@ -620,7 +490,6 @@ google.maps.event.addDomListener(window, 'load', function() {
 
 		//塗り色を変えるために"hover"状態を設定
 		e.feature.setProperty('state', 'hover');
-		
 		tooltip.style("visibility", "visible");
 
 		content = '<div class="tt_style">';
@@ -639,48 +508,8 @@ google.maps.event.addDomListener(window, 'load', function() {
 			pref = getPrefName1(pref);
 
 			content += '<p class="tt_pref">' + pref + '</p>';
-
-			content += '<p class="tt_caption">「30人学校」の割合</p>';
-			if(yearState == "YEAR2013"){
-				content += '<p><span class="tt_year">2013年</span><span id="rate2013" class="tt_on">' + tsv_2013_pref[e.feature.getProperty('pref')] + ' %</span></p>';
-				content += '<p><span class="tt_year">2040年</span><span id="rate2040" class="tt_off">' + tsv_2040_pref[e.feature.getProperty('pref')] + ' %</span></p>';
-			}
-			else if(yearState == "YEAR2040"){
-				content += '<p><span class="tt_year">2013年</span><span id="rate2013" class="tt_off">' + tsv_2013_pref[e.feature.getProperty('pref')] + ' %</span></p>';
-				content += '<p><span class="tt_year">2040年</span><span id="rate2040" class="tt_on">' + tsv_2040_pref[e.feature.getProperty('pref')] + ' %</span></p>';
-			};
-
-			content += '<p class="tt_caption tt_dotted">「30人学校」の数</p>';
-			content += '<div class="graph">';
-			///////////////////////2013年グラフ（ここから）///////////////////////////
-			if(yearState == "YEAR2013"){	//jQueryのクラス切り替えが効かないので分岐追加（hover時にここのclass設定が優先される）
-				content += '<div class="area2013 active">';
-			}
-			else if(yearState == "YEAR2040"){
-				content += '<div class="area2013 not-active">';
-			}
-			content += '<div class="tt_year float_L">2013年</div>';
-			content += '<div class="bar" style="width:';
-			content += (tsv_2013_limit_pref[e.feature.getProperty('pref')] / maxData) * 80; //棒グラフの最大幅（北海道の369校）を100pxとした
-			content += 'px;"></div>';
-			content += '<div class="value">' + tsv_2013_limit_pref[e.feature.getProperty('pref')] + '</div>';
-			content += '</div>';	//area2013
-			///////////////////////2013年グラフ（ここまで）///////////////////////////
-			content += '<div style="clear:both; margin-bottom:5px;"></div>';
-			///////////////////////2040年グラフ（ここから）///////////////////////////
-			if(yearState == "YEAR2013"){
-				content += '<div class="area2040 not-active">';	
-			}
-			else if(yearState == "YEAR2040"){
-				content += '<div class="area2040 active">';	
-			};
-			content += '<div class="tt_year float_L">2040年</div>';
-			content += '<div class="bar" style="width:';
-			content += (tsv_2040_limit_pref[e.feature.getProperty('pref')] / maxData) * 80; //棒グラフの最大幅（北海道の369校）を100pxとした
-			content += 'px;"></div>';
-			content += '<div class="value">' + tsv_2040_limit_pref[e.feature.getProperty('pref')] + '</div>';
-			content += '</div>';	//area2040
-			///////////////////////2040年グラフ（ここまで）///////////////////////////
+			//content += '<p class="tt_caption"></p>';
+			content += '<p><span class="tt_year">値：</span><span id="rate2013" class="tt_on">' + csv_2013_pref[e.feature.getProperty('pref')] + ' %</span></p>';
 
 			content += '</div>';	//graph
 
@@ -714,36 +543,13 @@ google.maps.event.addDomListener(window, 'load', function() {
 			content += e.feature.getProperty('town2');
 			content += "</p>";
 			content += '<div class="tt_city">';
-			if(pref == '福島県'){	//福島県は市町村単位のデータがないので表示を変える
-				content += '<p class="tt_fukushima">「2040年の市町村別推計人口がなくデータを算出できず」</p>';
+
+			if(csv_2013_city[e.feature.getProperty('city_code')] == undefined){
+				content += '<p><span class="tt_year">値</span><span id="rate2013" class="tt_on">データなし</p>';
 			}else{
-
-				if(yearState == "YEAR2013"){
-					if(tsv_2013_city[e.feature.getProperty('city_code')] == undefined){
-						content += '<p><span class="tt_year">2013年</span><span id="rate2013" class="tt_on">データなし</p>';
-					}else{
-						content += '<p><span class="tt_year">2013年</span><span id="rate2013" class="tt_on">' + tsv_2013_city[e.feature.getProperty('city_code')] + ' %</span></p>';
-					};
-					if(tsv_2040_city[e.feature.getProperty('city_code')] == undefined){
-						content += '<p><span class="tt_year">2040年</span><span id="rate2040" class="tt_off">データなし</p>';
-					}else{
-						content += '<p><span class="tt_year">2040年</span><span id="rate2040" class="tt_off">' + tsv_2040_city[e.feature.getProperty('city_code')] + ' %</span></p>';
-					};
-				}
-				else if(yearState == "YEAR2040"){
-					if(tsv_2013_city[e.feature.getProperty('city_code')] == undefined){
-						content += '<p><span class="tt_year">2013年</span><span id="rate2013" class="tt_off">データなし</p>';
-					}else{
-						content += '<p><span class="tt_year">2013年</span><span id="rate2013" class="tt_off">' + tsv_2013_city[e.feature.getProperty('city_code')] + ' %</span></p>';
-					};
-					if(tsv_2040_city[e.feature.getProperty('city_code')] == undefined){
-						content += '<p><span class="tt_year">2040年</span><span id="rate2040" class="tt_on">データなし</p>';
-					}else{
-						content += '<p><span class="tt_year">2040年</span><span id="rate2040" class="tt_on">' + tsv_2040_city[e.feature.getProperty('city_code')] + ' %</span></p>';
-					};
-				};
-
+				content += '<p><span class="tt_year">2013年</span><span id="rate2013" class="tt_on">' + csv_2013_city[e.feature.getProperty('city_code')] + ' %</span></p>';
 			};
+
 			content += '</div>';
 			//content += "<p>市町村コード: " + e.feature.getProperty('city_code') + "</p>";
 
@@ -759,43 +565,7 @@ google.maps.event.addDomListener(window, 'load', function() {
 		//tooltip.style("visibility", "hidden");	//ツールチップを消す
 	};
 
-	//HTMLの西暦を取得しyearStateを更新。さらにh2タグの内容を切り替え、ツールチップ内のクラスを付け替える。
-	function setYear(){
- 		yearState = "YEAR2040";
-	 		//console.log("2040");
-	 		//document.getElementById('map-heading').textContent = "2040年の場合";
-	 		//ツールチップ内のcss切り替え
-			$('#rate2013').addClass('tt_off');
-			$('#rate2013').removeClass('tt_on');
-			$('#rate2040').addClass('tt_on');
-			$('#rate2040').removeClass('tt_off');
-
-	 		$(".area2013").removeClass("active");
-	 		$(".area2013").addClass("not-active");
-			$(".area2040").removeClass("not-active");
-	 		$(".area2040").addClass("active");
-	 };
-
 });
-
-
-function getColor(rate){
-	var tmpColor;
-	if(rate >= 30.0){
-		tmpColor = "#ff0000";	//濃い赤
-	}
-	else if(rate >= 20.0 && rate < 30.0){
-		tmpColor = "#ff7777";	//薄い赤
-	}
-	else if(rate >= 10.0 && rate < 20.0){
-		tmpColor = "#ffcccc";	//薄い赤
-	}
-	else{
-		tmpColor = "#ffffff";	//白
-	};
-
-	return tmpColor;
-};
 
 function getPrefName1(pref){
 	switch(pref){
@@ -911,4 +681,22 @@ function getPrefName3(prefCode){
 		case 47: pref = '沖縄県'; break;
 	}
 	return pref;
+};
+
+function getColor(rate){
+	var tmpColor;
+	if(rate >= 30.0){
+		tmpColor = "#ff0000";	//濃い赤
+	}
+	else if(rate >= 20.0 && rate < 30.0){
+		tmpColor = "#ff7777";	//薄い赤
+	}
+	else if(rate >= 10.0 && rate < 20.0){
+		tmpColor = "#ffcccc";	//薄い赤
+	}
+	else{
+		tmpColor = "#ffffff";	//白
+	};
+
+	return tmpColor;
 };
